@@ -23,15 +23,5 @@ class Prompt:
         print("Exiting TSPCHAT...")
         raise SystemExit
 
-
 if __name__ == '__main__':
-    # Starting Client Management server
-    # address = ('localhost', 8085)
-    # server = ThrClientManagementServer(address, ThrClientManagementRequestHandler)
-    # print("Server launched : " + str(server.server_address))
-    # serverThread = threading.Thread(target=server.serve_forever)
-    # serverThread.setDaemon(True)
-    # serverThread.start()
-    # print("Server running in " + serverThread.getName())
-
     Prompt()
