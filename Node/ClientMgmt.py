@@ -8,3 +8,4 @@ class Client:
 
     def get_request(self):
         self.comm_handler.request.recv(1024)
+        print("test")
