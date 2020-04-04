@@ -1,12 +1,11 @@
 import socketserver
 import threading
-
-import time
-
-from Node.CryptoHandler import CryptoHandler
+from socket import socket
 
 
 class ThrClientManagementRequestHandler(socketserver.BaseRequestHandler):
+    request: socket
+
     def send_text(self, data_string):
         print(str(threading.currentThread().getName()) + " " + str(self.client_address) + " <- " + data_string)
         self.request.send(data_string.encode())
@@ -24,7 +23,6 @@ class ThrClientManagementRequestHandler(socketserver.BaseRequestHandler):
             self.client_address) + " has left the server.")
         return
 
-
     # Attribut de classe (dictionnaire) indiquant la fonction à appeler selon la commande envoyée par le client
     switcher = {
         "hello": do_hello,
@@ -33,6 +31,7 @@ class ThrClientManagementRequestHandler(socketserver.BaseRequestHandler):
 
     # Point d'entrée de chaque connexion client établie
     def handle(self):
+        print(type(self.request))
         # Un nouveau client est connecté :
         print(str(threading.currentThread().getName()) + " " + str(self.client_address) + " connected.")
         while True:
