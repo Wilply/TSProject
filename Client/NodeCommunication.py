@@ -1,4 +1,6 @@
 import socket
+import threading
+import time
 
 
 class NodeClient():
@@ -12,14 +14,33 @@ class NodeClient():
         print("Connected to Node.")
 
     def interactive(self):
+        # Starting receiving data
+        receive_thread = threading.Thread(target=self.receive)
+        receive_thread.setDaemon(True)
+        receive_thread.start()
+
+        # Starting input infinite loop
         while True:
             user_input = input("Client : ")
             self.node_socket.send(user_input.encode())
-            print("Node : " + self.node_socket.recv(1024).decode("utf-8"))
             if user_input == "quit":
                 print("Exiting")
                 self.node_socket.close()
                 raise SystemExit
+            time.sleep(0.2)
+
+    def receive(self):
+        while True:
+            try:
+                data: str = self.node_socket.recv(1024).decode("utf-8")
+                print("Node : " + data)
+                # On process les données reçues par le client
+                if not data:
+                    self.node_socket.close()
+                    print("Node closed connection. Exiting...")
+                    raise SystemExit
+            except OSError:
+                pass
 
 
 if __name__ == '__main__':
