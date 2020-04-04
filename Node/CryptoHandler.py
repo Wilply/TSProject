@@ -6,11 +6,32 @@ from Crypto.PublicKey.RSA import RsaKey
 from Node.NodeConfig import NodeConfig
 
 
-class CryptoHandler():
+class Singleton:
+
+    def __init__(self, cls):
+        self._cls = cls
+
+    def Instance(self):
+        try:
+            return self._instance
+        except AttributeError:
+            self._instance = self._cls()
+            return self._instance
+
+    def __call__(self):
+        raise TypeError('Singletons must be accessed through `Singleton.Instance(<object>)`.')
+
+    def __instancecheck__(self, inst):
+        return isinstance(inst, self._cls)
+
+# CryptoHandler est un singleton : son instanciation n'est possible qu'une fois.
+@Singleton
+class CryptoHandler:
     private_key: RsaKey
-    public_key: RsaKey
+    public_key : RsaKey
 
     def __init__(self):
+        self.testvar = None
         self.private_key, self.public_key = NodeConfig.load_keys()
         if not self.private_key or not self.public_key:
             print("RSA generation...")
@@ -27,4 +48,4 @@ class CryptoHandler():
 
 
 if __name__ == '__main__':
-    CryptoHandler()
+    ch: CryptoHandler = Singleton.Instance(CryptoHandler)

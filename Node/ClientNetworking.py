@@ -46,16 +46,3 @@ class ThrClientManagementRequestHandler(socketserver.BaseRequestHandler):
 
 class ThrClientManagementServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
     pass
-
-
-if __name__ == '__main__':
-    # Starting Client Management server
-    address = ('localhost', 37405)
-    server = ThrClientManagementServer(address, ThrClientManagementRequestHandler)
-    print("Server launched : " + str(server.server_address))
-    serverThread = threading.Thread(target=server.serve_forever)
-    serverThread.setDaemon(True)
-    serverThread.start()
-    print("Server running in " + serverThread.getName())
-    while True:
-        input("")
