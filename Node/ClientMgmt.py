@@ -1,5 +1,4 @@
 import threading
-from base64 import b64encode
 
 from Node.ClientNetworking import ThrClientManagementRequestHandler
 from Node.CryptoHandler import Singleton, CryptoHandler
@@ -21,7 +20,7 @@ class Client:
         self.comm_handler.send("WELCOME TSProject node, listening")
 
         # Envoi de la clé publique du serveur
-        self.comm_handler.send("SERVER-KEY "+Client.crypto_handler.str_public_key)
+        self.comm_handler.send("SERVER-KEY " + Client.crypto_handler.str_public_key)
 
         # Lancement de la phase d'authentification client-serveur
         self.auth()
