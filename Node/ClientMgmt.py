@@ -1,64 +1,63 @@
+import threading
+
 from Node.ClientNetworking import ThrClientManagementRequestHandler
+from Node.CryptoHandler import Singleton, CryptoHandler
+
+
+class ClientDisconnected(Exception):
+    pass
 
 
 class Client:
+    crypto_handler = Singleton.Instance(CryptoHandler)
+
     def __init__(self, comm_handler: ThrClientManagementRequestHandler):
-        self.comm_handler = comm_handler
+        self.comm_handler: ThrClientManagementRequestHandler = comm_handler
         self.address = comm_handler.client_address
+        self.identity: str = ""
+
+        # Démarrage boucle d'écoute une fois le client authentifié
+        while True:
+            data = self.listen_wait()
+            # Si le client n'envoie rien, alors il a fermé la connexion. On supprime l'objet.
+
+            # On redirige vers la fonction correspondant à la commande
+            main_command = data.split()[0]
+            function_call = self.function_switcher.get(main_command)
+            if function_call:
+                function_call(self, data)
+            else:
+                self.do_unkown_command(data)
+
+    def auth(self):
+        # On attend que le client demande de s'authentifier
+        while self.comm_handler.receive() != "auth":
+            self.comm_handler.send("AUTH-NEEDED Please authenticate", True)
+        pass
+
+    def listen_wait(self) -> str:
+        try:
+            # On attend que le client envoie quelque chose et on renvoie cette valeur
+            data: str = self.comm_handler.receive()
+            if not data or data == "":
+                raise ClientDisconnected()
+            return data
+        except OSError:
+            pass
 
     def do_hello(self, data):
-        self.comm_handler.send("Hello user ! You said "+data)
+        self.comm_handler.send("Hello user ! You said " + data)
 
     def do_unkown_command(self, data):
         self.comm_handler.send("Unknown command", True)
 
-    def do_quit(self):
-        self.comm_handler.close()
+    def do_quit(self, data):
+        pass
+
+    def __str__(self):
+        return str(threading.currentThread().getName()) + str(self.address) + self.identity
 
     function_switcher = {
-        "hello": do_hello
+        "hello": do_hello,
+        "quit": do_quit
     }
-
-    def process_request(self, data: str):
-        # Appel de la fonction correspondant à la commande utilisateur
-        main_command = data.split()[0]
-        function_call = self.function_switcher.get(main_command)
-        if function_call:
-            function_call(self, data)
-        else:
-            self.do_unkown_command(data)
-        return
-
-# def send_text(self, data_string):
-#     print(str(threading.currentThread().getName()) + " " + str(self.client_address) + " <- " + data_string)
-#     self.request.send(data_string.encode())
-#
-# def do_unknown_command(self, data_string):
-#     self.send_text("ERR Unkowwn_command")
-#
-# def do_hello(self, data_string):
-#     self.send_text("OK Hello")
-#
-# def do_quit(self, data_string):
-#     self.send_text("OK Quit")
-#     self.request.close()
-#     print(str(threading.currentThread().getName()) + " " + str(
-#         self.client_address) + " has left the server.")
-#     return
-#
-# # Attribut de classe (dictionnaire) indiquant la fonction à appeler selon la commande envoyée par le client
-# switcher = {
-#     "hello": do_hello,
-#     "quit": do_quit,
-# }
-
-# data_string = data.decode("utf-8").replace("\r\n", "")
-# print(str(threading.currentThread().getName()) + " " + str(
-#     self.client_address) + " -> " + data_string)
-# # On appelle la fonction associée à la commande par le dictionnaire switcher
-# # Si la commande est inconnue, on appelle do_unkown_command
-# function_call = self.switcher.get(data_string)
-# if function_call:
-#     function_call(self, data_string)
-# else:
-#     self.do_unknown_command(data_string)

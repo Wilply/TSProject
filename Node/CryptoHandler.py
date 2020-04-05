@@ -24,11 +24,12 @@ class Singleton:
     def __instancecheck__(self, inst):
         return isinstance(inst, self._cls)
 
+
 # CryptoHandler est un singleton : son instanciation n'est possible qu'une fois.
 @Singleton
 class CryptoHandler:
     private_key: RsaKey
-    public_key : RsaKey
+    public_key: RsaKey
 
     def __init__(self):
         self.testvar = None
@@ -37,7 +38,6 @@ class CryptoHandler:
             print("RSA generation...")
             self.generate_keys()
             self.private_key, self.public_key = NodeConfig.load_keys()
-        print("Private : " + self.private_key.export_key().decode("utf-8"))
 
     def generate_keys(self) -> (RsaKey, RsaKey):
         key_length = 2048
@@ -48,4 +48,5 @@ class CryptoHandler:
 
 
 if __name__ == '__main__':
+    # noinspection PyCallByClass
     ch: CryptoHandler = Singleton.Instance(CryptoHandler)
