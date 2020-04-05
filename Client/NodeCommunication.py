@@ -15,7 +15,7 @@ class NodeClient():
 
     def interactive(self):
         # Starting receiving data
-        receive_thread = threading.Thread(target=self.receive)
+        receive_thread = threading.Thread(target=self.listen)
         receive_thread.setDaemon(True)
         receive_thread.start()
 
@@ -28,21 +28,55 @@ class NodeClient():
                 raise SystemExit
             if user_input == "lorem":
                 user_input = "Morbinecnibhsitametnullamaximusdapibus.Duisnullaturpis,dapibussitametornaresitamet,elementumutnunc.Utatcursusnulla.Phasellusurnami,maximusegetjustoquis,vestibuluminterdumenim.Nullamvelquamsedexelementumconvallisutvitaedui.Morbieumolestiedolor.Integermaximusurnavelsemvehicula,acfacilisisfelisbibendum.Pellentesquerutrum,nibhaegestasporttitor,purusjustofermentumex,fermentumornareexauguevelante.Curabiturneclectusmaximus,tinciduntsemac,gravidaenim.Pellentesqueinauguevelliberorhoncusvestibulum.Craspharetralaoreettortorapretium.Vestibulumfinibussemacrisusdignissim,necfacilisisarcuplacerat.Duistempor,sapieninaliquamaliquam,magnaleopretiumneque,facilisisdictumnulladuiiderat.Morbinecnibhsitametnullamaximusdapibus.Duisnullaturpis,dapibussitametornaresitamet,elementumutnunc.Utatcursusnulla.Phasellusurnami,maximusegetjustoquis,vestibuluminterdumenim.Nullamvelquamsedexelementumconvallisutvitaedui.Morbieumolestiedolor.Integermaximusurnavelsemvehicula,acfacilisisfelisbibendum.Pellentesquerutrum,nibhaegestasporttitor,purusjustofermentumex,fermentumornareexauguevelante.Curabiturneclectusmaximus,tinciduntsemac,gravidaenim.Pellentesqueinauguevelliberorhoncusvestibulum.Craspharetralaoreettortorapretium.Vestibulumfinibussemacrisusdignissim,necfacilisisarcuplacerat.Duistempor,sapieninaliquamaliquam,magnaleopretiumneque,facilisisdictumnulladuiiderat.Morbinecnibhsitametnullamaximusdapibus.Duisnullaturpis,dapibussitametornaresitamet,elementumutnunc.Utatcursusnulla.Phasellusurnami,maximusegetjustoquis,vestibuluminterdumenim.Nullamvelquamsedexelementumconvallisutvitaedui.Morbieumolestiedolor.Integermaximusurnavelsemvehicula,acfacilisisfelisbibendum.Pellentesquerutrum,nibhaegestasporttitor,purusjustofermentumex,fermentumornareexauguevelante.Curabiturneclectusmaximus,tinciduntsemac,gravidaenim.Pellentesqueinauguevelliberorhoncusvestibulum.Craspharetralaoreettortorapretium.Vestibulumfinibussemacrisusdignissim,necfacilisisarcuplacerat.Duistempor,sapieninaliquamaliquam,magnaleopretiumneque,facilisisdictumnulladuiiderat.Morbinecnibhsitametnullamaximusdapibus.Duisnullaturpis,dapibussitametornaresitamet,elementumutnunc.Utatcursusnulla.Phasellusurnami,maximusegetjustoquis,vestibuluminterdumenim.Nullamvelquamsedexelementumconvallisutvitaedui.Morbieumolestiedolor.Integermaximusurnavelsemvehicula,acfacilisisfelisbibendum.Pellentesquerutrum,nibhaegestasporttitor,purusjustofermentumex,fermentumornareexauguevelante.Curabiturneclectusmaximus,tinciduntsemac,gravidaenim.Pellentesqueinauguevelliberorhoncusvestibulum.Craspharetralaoreettortorapretium.Vestibulumfinibussemacrisusdignissim,necfacilisisarcuplacerat.Duistempor,sapieninaliquamaliquam,magnaleopretiumneque,facilisisdictumnulladuiiderat.Morbinecnibhsitametnullamaximusdapibus.Duisnullaturpis,dapibussitametornaresitamet,elementumutnunc.Utatcursusnulla.Phasellusurnami,maximusegetjustoquis,vestibuluminterdumenim.Nullamvelquamsedexelementumconvallisutvitaedui.Morbieumolestiedolor.Integermaximusurnavelsemvehicula,acfacilisisfelisbibendum.Pellentesquerutrum,nibhaegestasporttitor,purusjustofermentumex,fermentumornareexauguevelante.Curabiturneclectusmaximus,tinciduntsemac,gravidaenim.Pellentesqueinauguevelliberorhoncusvestibulum.Craspharetralaoreettortorapretium.Vestibulumfinibussemacrisusdignissim,necfacilisisarcuplacerat.Duistempor,sapieninaliquamaliquam,magnaleopretiumneque,facilisisdictumnulladuiiderat.2"
-            self.node_socket.send(user_input.encode())
+            self.send(user_input)
             time.sleep(0.2)
 
-    def receive(self):
+    def send(self, msg: str):
+        lenght = len(msg.encode())
+        # On préfixe les données avec leur indication de taille
+        data = str(lenght) + ":" + msg
+        self.node_socket.send(data.encode())
+
+    def listen(self):
         while True:
             try:
-                data: str = self.node_socket.recv(1024).decode("utf-8")
+                data: str = self.receive()
                 print("Node : " + data)
-                # On process les données reçues par le client
+                # On process les données reçues par le node
                 if not data:
                     self.node_socket.close()
                     print("Node closed connection. Exiting...")
                     raise SystemExit
             except OSError:
                 pass
+
+    # noinspection DuplicatedCode
+    def receive(self):
+        length = None
+        buffer = data = message = b""
+        receiving = True
+        # Tant que on a pas tout reçu :
+        while receiving:
+            # On reçoit de nouvelle données
+            data += self.node_socket.recv(2048)
+            if not data:
+                break
+            buffer += data
+            while True:
+                if length is None:
+                    if b':' not in buffer:
+                        break
+                    # On récupère la taille du message
+                    length_str, ingnored, buffer = buffer.partition(b':')
+                    length = int(length_str)
+                if len(buffer) == length:
+                    receiving = False
+                message = buffer[:length]
+                buffer = buffer[length:]
+                length = None
+        full_message = message.decode()
+
+        return full_message
 
 
 if __name__ == '__main__':

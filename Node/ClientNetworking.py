@@ -1,4 +1,6 @@
 import socketserver
+import struct
+import sys
 import threading
 from socket import socket
 
@@ -28,17 +30,45 @@ class ThrClientManagementRequestHandler(socketserver.BaseRequestHandler):
         del self.client
         return
 
-    def receive(self) -> str:
-        data: str = self.request.recv(512).decode("utf-8")
-        if data != "":
-            print(str(threading.currentThread().getName()) + " " + str(self.client_address) + " -> " + data)
-        return data
+    # Receive adaptative size
+    def receive(self):
+        length = None
+        buffer = data = message = b""
+        receiving = True
+        # Tant que on a pas tout reçu :
+        while receiving:
+            # On reçoit de nouvelle données
+            data += self.request.recv(2048)
+            if not data:
+                break
+            buffer += data
+            while True:
+                if length is None:
+                    if b':' not in buffer:
+                        break
+                    # On récupère la taille du message
+                    length_str, ingnored, buffer = buffer.partition(b':')
+                    length = int(length_str)
+                if len(buffer) == length:
+                    receiving = False
+                message = buffer[:length]
+                buffer = buffer[length:]
+                length = None
+
+        full_message = message.decode()
+
+        print(str(threading.currentThread().getName()) + " " + str(self.client_address) + " -> " + full_message)
+        return full_message
 
     def send(self, data: str, is_error: bool = False):
         code = "OK" if not is_error else "ERR"
-        sending_data = code + " " + data
-        print(str(threading.currentThread().getName()) + " " + str(self.client_address) + " <- " + sending_data)
-        self.request.send(sending_data.encode())
+        prefixed_data = code + " " + data
+        print(str(threading.currentThread().getName()) + " " + str(self.client_address) + " <- " + prefixed_data)
+
+        lenght = len(prefixed_data.encode())
+        # On préfixe les données avec leur indication de taille
+        full_data = str(lenght)+":"+prefixed_data
+        self.request.send(full_data.encode())
 
 
 class ThrClientManagementServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
