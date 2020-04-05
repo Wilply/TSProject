@@ -1,4 +1,6 @@
 import os
+from base64 import b64encode
+
 from Crypto import Random
 from Crypto.PublicKey import RSA
 from Crypto.PublicKey.RSA import RsaKey
@@ -28,6 +30,7 @@ class Singleton:
 # CryptoHandler est un singleton : son instanciation n'est possible qu'une fois.
 @Singleton
 class CryptoHandler:
+    str_public_key: str
     __private_key: RsaKey
     public_key: RsaKey
 
@@ -38,12 +41,13 @@ class CryptoHandler:
             print("RSA generation...")
             self.generate_keys()
             self.__private_key, self.public_key = NodeConfig.load_keys()
+        self.str_public_key = self.public_key.export_key(format="OpenSSH").decode("utf-8")
 
     def generate_keys(self) -> (RsaKey, RsaKey):
         key_length = 2048
         private_key: RsaKey = RSA.generate(key_length)
         public_key: RsaKey = private_key.publickey()
-        print("Keys generation OK")
+        print("New keys generated !")
         NodeConfig.store_keys(private_key, public_key)
 
 

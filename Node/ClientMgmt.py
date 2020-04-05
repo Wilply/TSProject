@@ -1,4 +1,5 @@
 import threading
+from base64 import b64encode
 
 from Node.ClientNetworking import ThrClientManagementRequestHandler
 from Node.CryptoHandler import Singleton, CryptoHandler
@@ -20,7 +21,7 @@ class Client:
         self.comm_handler.send("WELCOME TSProject node, listening")
 
         # Envoi de la clé publique du serveur
-        self.comm_handler.send(Client.crypto_handler.public_key.export_key(format="OpenSSH").decode("utf-8"))
+        self.comm_handler.send("SERVER-KEY "+Client.crypto_handler.str_public_key)
 
         # Lancement de la phase d'authentification client-serveur
         self.auth()
@@ -56,7 +57,7 @@ class Client:
             pass
 
     def print_debug(self, msg: str):
-        print(str(self)+" : "+msg)
+        print(str(self) + " : " + msg)
 
     def do_hello(self, data):
         self.comm_handler.send("Hello user ! You said " + data)
@@ -68,7 +69,7 @@ class Client:
         pass
 
     def __str__(self):
-        return "Client "+str(threading.currentThread().getName()) + str(self.address) + self.identity
+        return "Client " + str(threading.currentThread().getName()) + " " + str(self.address) + self.identity
 
     function_switcher = {
         "hello": do_hello,
