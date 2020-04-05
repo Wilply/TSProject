@@ -19,6 +19,8 @@ class NodeClient():
         receive_thread.setDaemon(True)
         receive_thread.start()
 
+        time.sleep(0.5)
+
         # Starting input infinite loop
         while True:
             user_input = input("Client : ")
@@ -31,11 +33,14 @@ class NodeClient():
             self.send(user_input)
             time.sleep(0.2)
 
-    def send(self, msg: str):
-        lenght = len(msg.encode())
+    def send(self, data):
+        if type(data) == str:
+            data = data.encode()
+
+        lenght = len(data)
         # On préfixe les données avec leur indication de taille
-        data = str(lenght) + ":" + msg
-        self.node_socket.send(data.encode())
+        full_data = str(lenght).encode()+b":"+data
+        self.node_socket.send(full_data)
 
     def listen(self):
         while True:

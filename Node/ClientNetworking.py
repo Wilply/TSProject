@@ -55,20 +55,22 @@ class ThrClientManagementRequestHandler(socketserver.BaseRequestHandler):
                 buffer = buffer[length:]
                 length = None
 
-        full_message = message.decode()
+        full_str = message.decode()
 
-        print(str(threading.currentThread().getName()) + " " + str(self.client_address) + " -> " + full_message)
-        return full_message
+        print(str(threading.currentThread().getName()) + " " + str(self.client_address) + " -> " + str(message))
+        return full_str
 
-    def send(self, data: str, is_error: bool = False):
-        code = "OK" if not is_error else "ERR"
-        prefixed_data = code + " " + data
-        print(str(threading.currentThread().getName()) + " " + str(self.client_address) + " <- " + prefixed_data)
+    def send(self, data, is_error: bool = False):
+        code: bytes = b"OK" if not is_error else b"ERR"
+        if type(data) == str:
+            data = data.encode()
+        prefixed_data: bytes = code + b" " + data
+        print(str(threading.currentThread().getName()) + " " + str(self.client_address) + " <- " + str(prefixed_data))
 
-        lenght = len(prefixed_data.encode())
+        lenght = len(prefixed_data)
         # On préfixe les données avec leur indication de taille
-        full_data = str(lenght)+":"+prefixed_data
-        self.request.send(full_data.encode())
+        full_data = str(lenght).encode()+b":"+prefixed_data
+        self.request.send(full_data)
 
 
 class ThrClientManagementServer(socketserver.ThreadingMixIn, socketserver.TCPServer):

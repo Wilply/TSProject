@@ -28,16 +28,16 @@ class Singleton:
 # CryptoHandler est un singleton : son instanciation n'est possible qu'une fois.
 @Singleton
 class CryptoHandler:
-    private_key: RsaKey
+    __private_key: RsaKey
     public_key: RsaKey
 
     def __init__(self):
         self.testvar = None
-        self.private_key, self.public_key = NodeConfig.load_keys()
-        if not self.private_key or not self.public_key:
+        self.__private_key, self.public_key = NodeConfig.load_keys()
+        if not self.__private_key or not self.public_key:
             print("RSA generation...")
             self.generate_keys()
-            self.private_key, self.public_key = NodeConfig.load_keys()
+            self.__private_key, self.public_key = NodeConfig.load_keys()
 
     def generate_keys(self) -> (RsaKey, RsaKey):
         key_length = 2048

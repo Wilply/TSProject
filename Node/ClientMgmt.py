@@ -9,15 +9,21 @@ class ClientDisconnected(Exception):
 
 
 class Client:
-    crypto_handler = Singleton.Instance(CryptoHandler)
+    crypto_handler: CryptoHandler = Singleton.Instance(CryptoHandler)
 
     def __init__(self, comm_handler: ThrClientManagementRequestHandler):
         self.comm_handler: ThrClientManagementRequestHandler = comm_handler
         self.address = comm_handler.client_address
         self.identity: str = ""
 
+        # Envoi de la bannière de bienvenue
+        self.comm_handler.send("WELCOME TSProject node, listening")
+
+        # Envoi de la clé publique du serveur
+        self.comm_handler.send(Client.crypto_handler.public_key.export_key(format="OpenSSH").decode("utf-8"))
+
         # Lancement de la phase d'authentification client-serveur
-        # self.auth()
+        self.auth()
 
         # Démarrage boucle d'écoute une fois le client authentifié
         while True:
@@ -35,6 +41,7 @@ class Client:
         # On attend que le client demande de s'authentifier "auth"
         while self.listen_wait().split()[0] != "auth":
             self.comm_handler.send("AUTH-NEEDED Please authenticate", True)
+        self.comm_handler.send("AUTH-OK Successfully authenticated, welcome")
         self.print_debug("authenticated")
         pass
 
