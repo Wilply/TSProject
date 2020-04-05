@@ -16,10 +16,12 @@ class Client:
         self.address = comm_handler.client_address
         self.identity: str = ""
 
+        # Lancement de la phase d'authentification client-serveur
+        # self.auth()
+
         # Démarrage boucle d'écoute une fois le client authentifié
         while True:
             data = self.listen_wait()
-            # Si le client n'envoie rien, alors il a fermé la connexion. On supprime l'objet.
 
             # On redirige vers la fonction correspondant à la commande
             main_command = data.split()[0]
@@ -30,9 +32,10 @@ class Client:
                 self.do_unkown_command(data)
 
     def auth(self):
-        # On attend que le client demande de s'authentifier
-        while self.comm_handler.receive() != "auth":
+        # On attend que le client demande de s'authentifier "auth"
+        while self.listen_wait().split()[0] != "auth":
             self.comm_handler.send("AUTH-NEEDED Please authenticate", True)
+        self.print_debug("authenticated")
         pass
 
     def listen_wait(self) -> str:
@@ -45,6 +48,9 @@ class Client:
         except OSError:
             pass
 
+    def print_debug(self, msg: str):
+        print(str(self)+" : "+msg)
+
     def do_hello(self, data):
         self.comm_handler.send("Hello user ! You said " + data)
 
@@ -55,7 +61,7 @@ class Client:
         pass
 
     def __str__(self):
-        return str(threading.currentThread().getName()) + str(self.address) + self.identity
+        return "Client "+str(threading.currentThread().getName()) + str(self.address) + self.identity
 
     function_switcher = {
         "hello": do_hello,

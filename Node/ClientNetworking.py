@@ -29,7 +29,7 @@ class ThrClientManagementRequestHandler(socketserver.BaseRequestHandler):
         return
 
     def receive(self) -> str:
-        data: str = self.request.recv(1024).decode("utf-8")
+        data: str = self.request.recv(512).decode("utf-8")
         if data != "":
             print(str(threading.currentThread().getName()) + " " + str(self.client_address) + " -> " + data)
         return data
