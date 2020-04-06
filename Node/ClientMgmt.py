@@ -22,8 +22,11 @@ class Client:
         # Envoi de la clé publique du serveur
         self.comm_handler.send("SERVER-KEY " + Client.crypto_handler.str_public_key)
 
+        # Envoi de l'authenticator
+        self.comm_handler.send("SERVER-AUTH " + self.crypto_handler.get_authenticator())
+
         # Lancement de la phase d'authentification client-serveur
-        self.auth()
+        self.client_auth()
 
         # Démarrage boucle d'écoute une fois le client authentifié
         while True:
@@ -37,7 +40,7 @@ class Client:
             else:
                 self.do_unkown_command(data)
 
-    def auth(self):
+    def client_auth(self):
         # On attend que le client demande de s'authentifier "auth"
         while self.listen_wait().split()[0] != "auth":
             self.comm_handler.send("AUTH-NEEDED Please authenticate", True)
