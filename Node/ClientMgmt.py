@@ -1,7 +1,8 @@
 import threading
 
 from Node.ClientNetworking import ThrClientManagementRequestHandler
-from Node.CryptoHandler import Singleton, CryptoHandler
+from Node.CryptoHandler import CryptoHandler
+from Node.Singleton import Singleton
 
 
 class ClientDisconnected(Exception):

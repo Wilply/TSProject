@@ -1,7 +1,8 @@
 import threading
 
 from Node.ClientNetworking import ThrClientManagementServer, ThrClientManagementRequestHandler
-from Node.CryptoHandler import CryptoHandler, Singleton
+from Node.CryptoHandler import CryptoHandler
+from Node.Singleton import Singleton
 
 if __name__ == '__main__':
     # Starting CryptoHandler (key generation)

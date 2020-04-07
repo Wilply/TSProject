@@ -1,32 +1,13 @@
 import time
-from base64 import b64encode
+from base64 import b64encode, b64decode
 
 from Crypto.Hash import SHA256
 from Crypto.PublicKey import RSA
 from Crypto.PublicKey.RSA import RsaKey
-from Crypto.Cipher import PKCS1_OAEP
 from Crypto.Signature.pkcs1_15 import PKCS115_SigScheme
 
 from Node.NodeConfig import NodeConfig
-
-
-class Singleton:
-
-    def __init__(self, cls):
-        self._cls = cls
-
-    def Instance(self):
-        try:
-            return self._instance
-        except AttributeError:
-            self._instance = self._cls()
-            return self._instance
-
-    def __call__(self):
-        raise TypeError('Singletons must be accessed through `Singleton.Instance(<object>)`.')
-
-    def __instancecheck__(self, inst):
-        return isinstance(inst, self._cls)
+from Node.Singleton import Singleton
 
 
 # CryptoHandler est un singleton : son instanciation n'est possible qu'une fois.
@@ -51,6 +32,19 @@ class CryptoHandler:
         public_key: RsaKey = private_key.publickey()
         print("New keys generated !")
         NodeConfig.store_keys(private_key, public_key)
+
+    def to_rsa(self, key: str) -> RsaKey:
+        return RSA.import_key(b64decode(key))
+
+    def check_authenticator(self, key: RsaKey, authenticator: str) -> bool:
+        msg = str(round(time.time()))[:-1]
+        hash = SHA256.new(msg.encode())
+        verifier = PKCS115_SigScheme(key)
+        try:
+            verifier.verify(hash, b64decode(authenticator))
+            return True
+        except ValueError:
+            return False
 
     def get_authenticator(self) -> str:
         message = str(round(time.time()))[:-1]
