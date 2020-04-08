@@ -7,7 +7,7 @@ from Crypto.PublicKey import RSA
 from Crypto.PublicKey.RSA import RsaKey
 from Crypto.Signature.pkcs1_15 import PKCS115_SigScheme
 
-from Client.Singleton import Singleton
+from Client.Utils import Singleton
 from Node.NodeConfig import NodeConfig
 
 

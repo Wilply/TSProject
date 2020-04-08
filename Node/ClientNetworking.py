@@ -1,6 +1,4 @@
 import socketserver
-import struct
-import sys
 import threading
 from socket import socket
 
@@ -15,12 +13,18 @@ class ThrClientManagementRequestHandler(socketserver.BaseRequestHandler):
     # Point d'entrée de chaque connexion client établie
     def handle(self):
         # Un nouveau client est connecté :
-        from Node.ClientMgmt import Client, ClientDisconnected
+        from Node.ClientMgmt import Client, ClientDisconnected, ClientAuthError, ClientAuthTimeout
         print(str(threading.currentThread().getName()) + " " + str(self.client_address) + " connected.")
 
         # Boucle de gestion du client
         try:
             self.client = Client(self)
+        except ClientAuthError:
+            print(str(threading.currentThread().getName()) + " " + str(
+                self.client_address) + " did not pass authentication checks. Stopping connection...")
+        except ClientAuthTimeout:
+            print(str(threading.currentThread().getName()) + " " + str(
+                self.client_address) + " timed out during authentication. Stopping connection...")
         except ClientDisconnected:
             pass
 
@@ -69,9 +73,10 @@ class ThrClientManagementRequestHandler(socketserver.BaseRequestHandler):
 
         lenght = len(prefixed_data)
         # On préfixe les données avec leur indication de taille
-        full_data = str(lenght).encode()+b":"+prefixed_data
+        full_data = str(lenght).encode() + b":" + prefixed_data
         self.request.send(full_data)
 
 
 class ThrClientManagementServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
+    socketserver.ThreadingMixIn.daemon_threads = True
     pass

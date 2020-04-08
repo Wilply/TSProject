@@ -1,16 +1,15 @@
 import socket
 import threading
 import time
-from base64 import b64encode
 
 from Crypto.PublicKey.RSA import RsaKey
 
 from Client.CryptoHandler import CryptoHandler
 from Client.DbManager import ServerModel
-from Client.Singleton import Singleton
+from Client.Utils import Singleton
 
 
-class NodeClient():
+class NodeClient:
     def __init__(self, ip, port):
         self.node_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.ip = ip
@@ -65,26 +64,32 @@ class NodeClient():
                 raise SystemExit
         # Si le serveur enregistré correspond au serveur auquel on se connecte actuellement
         else:
-            print("Node " + self.ip + " authenticated, sending client identity...")
+            print("Node " + self.ip + " authenticated")
 
-        # Authenticating client
+        # Envoi des données d'identité du client
+        print("Sending client public key and identity")
+        # Envoi de la clé publique
         self.send("CLIENT-KEY " + ch.str_public_key)
-
         # Envoi de l'authenticator
         self.send("CLIENT-AUTH " + ch.get_authenticator())
 
-        print("")
+        while True:
+            data = self.receive()
+            if data.split()[1] == "AUTH-OK":
+                print("Client authentication successful, starting interactive session")
+                print("")
+                break
 
+        time.sleep(0.2)
         # Starting normal communication
         receive_thread = threading.Thread(target=self.listen)
         receive_thread.setDaemon(True)
         receive_thread.start()
-
-        time.sleep(0.5)
+        time.sleep(0.2)
 
         # Starting input infinite loop
         while True:
-            user_input = input("Client : ")
+            user_input = input("Client > ")
             if user_input == "quit":
                 print("Exiting")
                 self.node_socket.close()
@@ -145,6 +150,7 @@ class NodeClient():
 
 if __name__ == '__main__':
     # Init CryptoHandler
+    # noinspection PyCallByClass,PyCallByClass
     ch: CryptoHandler = Singleton.Instance(CryptoHandler)
     print("Identity : " + ch.identity)
     print("Simple TCP client starting...")
