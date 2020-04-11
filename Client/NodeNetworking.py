@@ -109,7 +109,8 @@ class NodeClient:
                 print("Exiting")
                 self.node_socket.close()
                 raise SystemExit
-            self.send(user_input)
+            # On envoie les données chiffrées et encodées en base64
+            self.send(ch.encrypt(user_input, self.session_key))
             time.sleep(0.2)
 
     def send(self, data):

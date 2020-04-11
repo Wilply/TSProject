@@ -59,10 +59,10 @@ class ThrClientManagementRequestHandler(socketserver.BaseRequestHandler):
                 buffer = buffer[length:]
                 length = None
 
-        full_str = message.decode()
+        full_message = message
 
         print(str(threading.currentThread().getName()) + " " + str(self.client_address) + " -> " + str(message))
-        return full_str
+        return full_message
 
     def send(self, data, is_error: bool = False):
         code: bytes = b"OK" if not is_error else b"ERR"

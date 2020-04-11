@@ -2,7 +2,7 @@ import time
 from base64 import b64encode, b64decode
 from typing import Union
 
-from Crypto.Cipher import PKCS1_OAEP
+from Crypto.Cipher import PKCS1_OAEP, AES
 from Crypto.Hash import SHA256
 from Crypto.PublicKey import RSA
 from Crypto.PublicKey.RSA import RsaKey
@@ -13,6 +13,7 @@ from Node.Utils import Singleton
 
 
 # CryptoHandler est un singleton : son instanciation n'est possible qu'une fois.
+# noinspection DuplicatedCode
 @Singleton
 class CryptoHandler:
     str_public_key: str
@@ -59,6 +60,35 @@ class CryptoHandler:
             data = data.encode()
         cipher_rsa = PKCS1_OAEP.new(self.__private_key)
         return cipher_rsa.decrypt(data)
+
+    def encrypt(self, data: Union[str, bytes], session_key: bytes) -> bytes:
+        if type(data) == str:
+            data = data.encode()
+        cipher = AES.new(session_key, AES.MODE_GCM)
+        cipher_data, tag = cipher.encrypt_and_digest(data)
+        nonce = cipher.nonce
+
+        full_data = nonce + tag + cipher_data
+        # print("Tag : " + str(b64encode(tag)))
+        # print("Nonce : " + str(b64encode(nonce)))
+        # print("Cipher data : " + str(b64encode(cipher_data)))
+        # print("Full data : " + str(b64encode(full_data)))
+
+        return full_data
+
+    def decrypt(self, data: bytes, session_key: bytes) -> bytes:
+        # nonce, tag, cipher_data = [data[x] for x in (16, 16, -1)]
+        nonce = data[:16]
+        tag = data[16:32]
+        cipher_data = data[32:]
+        cipher = AES.new(session_key, AES.MODE_GCM, nonce=nonce)
+        clear_data = cipher.decrypt_and_verify(cipher_data, tag)
+        # print("Cipher data : " + str(b64encode(cipher_data)))
+        # print("Tag : " + str(b64encode(tag)))
+        # print("Nonce : " + str(b64encode(nonce)))
+        # print("Clear data : " + str(clear_data))
+
+        return clear_data
 
 
 if __name__ == '__main__':

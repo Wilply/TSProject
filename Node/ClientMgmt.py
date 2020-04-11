@@ -56,22 +56,13 @@ class Client:
         except (Exception, FunctionTimedOut):
             raise ClientAuthError
 
-        # Démarrage boucle d'écoute une fois le client authentifié
-        # TODO parler en chiffré symétrique
-        while True:
-            data = self.listen_wait()
-            # On redirige vers la fonction correspondant à la commande
-            main_command = data.split()[0]
-            function_call = self.function_switcher.get(main_command)
-            if function_call:
-                function_call(self, data)
-            else:
-                self.do_unknown_command()
+        # Lancement de la boucle d'écoute des commandes client
+        self.main_loop()
 
     @func_set_timeout(5)
     def client_crypto_exchange(self):
         while True:
-            data = self.listen_wait()
+            data = self.listen_wait(False).decode()
             if data.split()[0] == "SESSION-KEY":
                 break
             else:
@@ -84,7 +75,7 @@ class Client:
     def client_auth(self):
         # On attend que le client envoie ses infos d'authentification
         while True:
-            data = self.listen_wait()
+            data = self.listen_wait(False).decode()
             if data.split()[0] == "CLIENT-KEY":
                 break
             else:
@@ -94,7 +85,7 @@ class Client:
         self.client_key: RsaKey = self.crypto_handler.to_rsa(self.client_key_str)
 
         while True:
-            data = self.listen_wait()
+            data = self.listen_wait(False).decode()
             if data.split()[0] == "CLIENT-AUTH":
                 break
             else:
@@ -111,19 +102,6 @@ class Client:
             self.comm_handler.send("AUTH-ERROR Authentication error, wrong identity. Closing.")
             raise Exception
 
-    def listen_wait(self) -> str:
-        try:
-            # On attend que le client envoie quelque chose et on renvoie cette valeur
-            data: str = self.comm_handler.receive()
-            if not data or data == "":
-                raise ClientDisconnected()
-            return data
-        except OSError:
-            pass
-
-    def print_debug(self, msg: str):
-        print(str(self) + " : " + msg)
-
     def do_hello(self, data):
         self.comm_handler.send("Hello user ! You said " + data)
 
@@ -136,12 +114,43 @@ class Client:
     def do_unknown_command(self):
         self.comm_handler.send("Unknown command", True)
 
+    def main_loop(self):
+
+        function_switcher = {
+            "hello": self.do_hello,
+            "whoami": self.do_whoami,
+            "quit": self.do_quit,
+        }
+        while True:
+            data = self.listen_wait().decode()
+            # On redirige vers la fonction correspondant à la commande
+            main_command = data.split()[0]
+            function_call = function_switcher.get(main_command)
+            if main_command == "hello":
+                function_call(data)
+            else:
+                self.do_unknown_command()
+
+    # TODO : afficher dans les logs le texte déchiffré au lieu de chiffré
+    # TODO : chiffrer le sens Node => Client
+    # TODO : créer une méthode send qui chiffre avant d'envoyer à ClientNetworking
+    def listen_wait(self, is_encrypted: bool = True) -> bytes:
+        try:
+            # On attend que le client envoie quelque chose et on renvoie cette valeur
+            data: bytes = self.comm_handler.receive()
+            # Si le socket n'envoie plus rien, alors le client est déconnecté
+            if not data or data == "":
+                raise ClientDisconnected()
+            # Si on s'attend à des données chiffrées, alors on les déchiffre avec clé de session et un décode base64
+            if is_encrypted:
+                data: bytes = self.crypto_handler.decrypt(data, self.session_key)
+            return data
+        except OSError:
+            pass
+
+    def print_debug(self, msg: str):
+        print(str(self) + " : " + msg)
+
     def __str__(self):
         return "Client " + str(threading.currentThread().getName()) + " " + str(
             self.client_address) + " " + self.client_identity
-
-    function_switcher = {
-        "hello": do_hello,
-        "whoami": do_whoami,
-        "quit": do_quit,
-    }
