@@ -5,7 +5,7 @@ from Crypto.PublicKey import RSA
 from Crypto.PublicKey.RSA import RsaKey
 
 
-class NodeConfig:
+class ClientConfig:
     @staticmethod
     def check_dir():
         if not os.path.exists(".config"):
@@ -13,7 +13,7 @@ class NodeConfig:
 
     @staticmethod
     def load_keys() -> (RsaKey, RsaKey):
-        NodeConfig.check_dir()
+        ClientConfig.check_dir()
         try:
             priv_file: BinaryIO = open(".config/rsa_private.key", "rb")
             pub_file: BinaryIO = open(".config/rsa_public.key", "rb")
@@ -27,7 +27,7 @@ class NodeConfig:
 
     @staticmethod
     def store_keys(privkey: RsaKey, pubkey: RsaKey):
-        NodeConfig.check_dir()
+        ClientConfig.check_dir()
         try:
             priv_file: BinaryIO = open(".config/rsa_private.key", "wb")
             pub_file: BinaryIO = open(".config/rsa_public.key", "wb")

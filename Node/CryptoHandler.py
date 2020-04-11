@@ -1,6 +1,8 @@
 import time
 from base64 import b64encode, b64decode
+from typing import Union
 
+from Crypto.Cipher import PKCS1_OAEP
 from Crypto.Hash import SHA256
 from Crypto.PublicKey import RSA
 from Crypto.PublicKey.RSA import RsaKey
@@ -51,6 +53,12 @@ class CryptoHandler:
         tstamp_hash = SHA256.new(message.encode())
         signer = PKCS115_SigScheme(self.__private_key)
         return b64encode(signer.sign(tstamp_hash)).decode("utf-8")
+
+    def decrypt_rsa(self, data: Union[str, bytes]) -> bytes:
+        if type(data) == str:
+            data = data.encode()
+        cipher_rsa = PKCS1_OAEP.new(self.__private_key)
+        return cipher_rsa.decrypt(data)
 
 
 if __name__ == '__main__':

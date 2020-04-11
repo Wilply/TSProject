@@ -1,5 +1,8 @@
 from peewee import *
 
+from Client.ClientConfig import ClientConfig
+
+ClientConfig.check_dir()
 client_db: SqliteDatabase = SqliteDatabase('.config/db.sqlite')
 
 

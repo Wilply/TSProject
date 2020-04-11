@@ -1,8 +1,9 @@
 import hashlib
 import threading
+from base64 import b64decode, b64encode
 
 from Crypto.PublicKey.RSA import RsaKey
-from timeout_decorator import timeout_decorator
+from func_timeout import func_set_timeout, FunctionTimedOut
 
 from Node.ClientNetworking import ThrClientManagementRequestHandler
 from Node.CryptoHandler import CryptoHandler
@@ -17,7 +18,7 @@ class ClientAuthError(Exception):
     pass
 
 
-class ClientAuthTimeout(Exception):
+class ClientSessionExchangeError(Exception):
     pass
 
 
@@ -32,6 +33,7 @@ class Client:
         self.client_identity = ""
         self.client_key_str = None
         self.client_key = None
+        self.session_key = None
 
         # Envoi de la bannière de bienvenue
         self.comm_handler.send("WELCOME TSProject node, listening")
@@ -42,14 +44,20 @@ class Client:
         # Envoi de l'authenticator
         self.comm_handler.send("SERVER-AUTH " + self.crypto_handler.get_authenticator())
 
-        # Lancement de la phase d'authentification du client. Il a 10 secondes pour s'authentifier,
-        # au dela desquelles la connexion est fermée
+        # Lancement de la phase de négociation de clé de session. Timeout de 5 sec
+        try:
+            self.client_crypto_exchange()
+        except (Exception, FunctionTimedOut):
+            raise ClientSessionExchangeError
+
+        # Lancement de la phase d'authentification du client. Timeout de 5 sec
         try:
             self.client_auth()
-        except Exception:
+        except (Exception, FunctionTimedOut):
             raise ClientAuthError
 
         # Démarrage boucle d'écoute une fois le client authentifié
+        # TODO parler en chiffré symétrique
         while True:
             data = self.listen_wait()
             # On redirige vers la fonction correspondant à la commande
@@ -60,8 +68,19 @@ class Client:
             else:
                 self.do_unknown_command()
 
-    # TODO envoyer les infos du client en les chiffrant avec la pubkey du serveur
-    @timeout_decorator.timeout(10, use_signals=False, timeout_exception=ClientAuthTimeout)
+    @func_set_timeout(5)
+    def client_crypto_exchange(self):
+        while True:
+            data = self.listen_wait()
+            if data.split()[0] == "SESSION-KEY":
+                break
+            else:
+                self.comm_handler.send("SESSION-NEEDED Please send session key", True)
+        self.session_key = self.crypto_handler.decrypt_rsa(b64decode(data.split()[1]))
+        print("Session key : " + str(b64encode(self.session_key)))
+        self.comm_handler.send("SESSION-OK Session key exchange successful")
+
+    @func_set_timeout(5)
     def client_auth(self):
         # On attend que le client envoie ses infos d'authentification
         while True:
@@ -85,10 +104,11 @@ class Client:
 
         # Si le client est bien qui il prétend être
         if self.crypto_handler.check_authenticator(self.client_key, client_authenticator):
-            self.comm_handler.send("AUTH-OK Successfully authenticated, welcome")
             self.client_identity: str = hashlib.sha1(self.client_key.export_key(format="DER")).hexdigest()
+            self.comm_handler.send("AUTH-OK Successfully authenticated, welcome " + self.client_identity)
             self.print_debug("authenticated")
         else:
+            self.comm_handler.send("AUTH-ERROR Authentication error, wrong identity. Closing.")
             raise Exception
 
     def listen_wait(self) -> str:
@@ -107,11 +127,14 @@ class Client:
     def do_hello(self, data):
         self.comm_handler.send("Hello user ! You said " + data)
 
-    def do_unknown_command(self):
-        self.comm_handler.send("Unknown command", True)
+    def do_whoami(self, data):
+        self.comm_handler.send("You are " + self.client_identity)
 
     def do_quit(self, data):
         pass
+
+    def do_unknown_command(self):
+        self.comm_handler.send("Unknown command", True)
 
     def __str__(self):
         return "Client " + str(threading.currentThread().getName()) + " " + str(
@@ -119,5 +142,6 @@ class Client:
 
     function_switcher = {
         "hello": do_hello,
-        "quit": do_quit
+        "whoami": do_whoami,
+        "quit": do_quit,
     }

@@ -1,6 +1,7 @@
 import socket
 import threading
 import time
+from base64 import b64encode
 
 from Crypto.PublicKey.RSA import RsaKey
 
@@ -16,6 +17,7 @@ class NodeClient:
         self.port = port
         self.server_key = None
         self.server_key_str = None
+        self.session_key = None
 
     def initiate(self):
         self.node_socket.connect((self.ip, self.port))
@@ -55,16 +57,29 @@ class NodeClient:
                 "WARNING ! NODE IDENTITY HAS CHANGED ! This may be due to a man-in-the-middle attack. Proceed with "
                 "care. Contact server owner if needed.")
             # On demande à l'utilisateur si il veut sauvegarder la nouvelle identité du serveur
-            if input("Save new identity and connect ? [y/N] ") == "y":
+            if input("Save new node identity ? [y/N] ") == "y":
                 check_server.public_key = self.server_key_str
                 check_server.save()
-                print("Saving node identity")
+                print("Saving node identity...")
+                print("Exiting, please re-connect to apply new server identity.")
+                raise SystemExit
             else:
                 print("Exiting...")
                 raise SystemExit
         # Si le serveur enregistré correspond au serveur auquel on se connecte actuellement
         else:
-            print("Node " + self.ip + " authenticated")
+            pass
+
+        # On génère la clé de session et on l'envoie au serveur
+        self.session_key: bytes = ch.generate_session_key()
+        print("Session key : " + str(b64encode(self.session_key)))
+        self.send(b"SESSION-KEY " + b64encode(ch.encrypt_rsa(self.session_key, self.server_key)))
+
+        while True:
+            data = self.receive()
+            if data.split()[1] == "SESSION-OK":
+                print("Session key exchange successful")
+                break
 
         # Envoi des données d'identité du client
         print("Sending client public key and identity")
@@ -76,10 +91,10 @@ class NodeClient:
         while True:
             data = self.receive()
             if data.split()[1] == "AUTH-OK":
-                print("Client authentication successful, starting interactive session")
-                print("")
+                print("Client authentication successful")
                 break
 
+        print("")
         time.sleep(0.2)
         # Starting normal communication
         receive_thread = threading.Thread(target=self.listen)
@@ -164,6 +179,7 @@ if __name__ == '__main__':
     node = NodeClient(ip, port)
     try:
         node.initiate()
+        print("")
         node.interactive()
     except ConnectionRefusedError:
         print("Cannot connect to server. Exiting.")

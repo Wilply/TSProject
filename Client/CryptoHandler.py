@@ -1,10 +1,14 @@
 import hashlib
+import sys
 import time
 from base64 import b64encode, b64decode
+from typing import Union
 
+from Crypto.Cipher import PKCS1_OAEP
 from Crypto.Hash import SHA256
 from Crypto.PublicKey import RSA
 from Crypto.PublicKey.RSA import RsaKey
+from Crypto.Random import get_random_bytes
 from Crypto.Signature.pkcs1_15 import PKCS115_SigScheme
 
 from Client.Utils import Singleton
@@ -53,6 +57,19 @@ class CryptoHandler:
         tstamp_hash = SHA256.new(message.encode())
         signer = PKCS115_SigScheme(self.__private_key)
         return b64encode(signer.sign(tstamp_hash)).decode("utf-8")
+
+    def generate_session_key(self) -> bytes:
+        return get_random_bytes(16)
+
+    def encrypt_rsa(self, data: Union[str, bytes], public_key: RsaKey) -> bytes:
+        if type(data) == str:
+            data = data.encode()
+        if sys.getsizeof(data) > 200:
+            raise Exception("Trying to encrypt too large data with RSA. Limit is 200 bytes.")
+        cipher_rsa = PKCS1_OAEP.new(public_key)
+        encrypted_data = cipher_rsa.encrypt(data)
+        return encrypted_data
+
 
 if __name__ == '__main__':
     # noinspection PyCallByClass

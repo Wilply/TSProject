@@ -13,7 +13,7 @@ class ThrClientManagementRequestHandler(socketserver.BaseRequestHandler):
     # Point d'entrée de chaque connexion client établie
     def handle(self):
         # Un nouveau client est connecté :
-        from Node.ClientMgmt import Client, ClientDisconnected, ClientAuthError, ClientAuthTimeout
+        from Node.ClientMgmt import Client, ClientDisconnected, ClientAuthError, ClientSessionExchangeError
         print(str(threading.currentThread().getName()) + " " + str(self.client_address) + " connected.")
 
         # Boucle de gestion du client
@@ -22,9 +22,9 @@ class ThrClientManagementRequestHandler(socketserver.BaseRequestHandler):
         except ClientAuthError:
             print(str(threading.currentThread().getName()) + " " + str(
                 self.client_address) + " did not pass authentication checks. Stopping connection...")
-        except ClientAuthTimeout:
+        except ClientSessionExchangeError:
             print(str(threading.currentThread().getName()) + " " + str(
-                self.client_address) + " timed out during authentication. Stopping connection...")
+                self.client_address) + " error during session key exchange. Stopping connection...")
         except ClientDisconnected:
             pass
 
