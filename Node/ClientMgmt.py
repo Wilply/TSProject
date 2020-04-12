@@ -1,4 +1,5 @@
 import hashlib
+import socket
 from base64 import b64decode, b64encode
 
 from Crypto.PublicKey.RSA import RsaKey
@@ -10,14 +11,6 @@ from Node.Utils import Singleton
 
 
 class ClientDisconnected(Exception):
-    pass
-
-
-class ClientAuthError(Exception):
-    pass
-
-
-class ClientSessionExchangeError(Exception):
     pass
 
 
@@ -47,7 +40,7 @@ class Client:
         try:
             self.client_crypto_exchange()
         except (Exception, FunctionTimedOut):
-            raise ClientSessionExchangeError
+            self.close("error during session encryption key exchange")
 
         # A partir de ce point, tous les échanges sont chiffrés avec la clé de session
 
@@ -56,7 +49,7 @@ class Client:
             self.client_auth()
         # except (Exception, FunctionTimedOut):
         except FunctionTimedOut:
-            raise ClientAuthError
+            self.close("client authentication timed out")
 
         # Lancement de la boucle d'écoute des commandes client
         self.main_loop()
@@ -136,20 +129,30 @@ class Client:
 
     def listen_wait(self, is_encrypted: bool = True) -> bytes:
         try:
-            # On attend que le client envoie quelque chose et on renvoie cette valeur
-            data: bytes = self.comm_handler.receive()
-            # Si le socket n'envoie plus rien, alors le client est déconnecté
-            if not data or data == "":
-                raise ClientDisconnected()
-            # Si on s'attend à des données chiffrées, alors on les déchiffre avec clé de session et un décode base64
-            if is_encrypted:
-                data: bytes = self.crypto_handler.decrypt(data, self.session_key)
-                print(str(self) + " (E) -> " + str(data))
-            else:
-                print(str(self) + " -> " + str(data))
+            while True:
+                # On attend que le client envoie quelque chose et on renvoie cette valeur
+                data: bytes = self.comm_handler.receive()
+                # Si le socket n'envoie plus rien, alors le client est déconnecté
+                if not data or data == "":
+                    self.close("client left")
+                # Si la donnée reçue n'est pas un keepalive, on process (sinon on recommence la boucle)
+                if data != b"keepalive":
+                    # Si on s'attend à des données chiffrées, alors on les déchiffre avec clé de session et un décode
+                    # base64
+                    if is_encrypted:
+                        data: bytes = self.crypto_handler.decrypt(data, self.session_key)
+                        print(str(self) + " (E) -> " + str(data))
+                    else:
+                        print(str(self) + " -> " + str(data))
+                    break
             return data
-        except OSError:
-            pass
+        # Si le socket timeout alors on ferme la connexion
+        except socket.timeout:
+            self.close("timed out")
+        except ValueError:
+            self.close("encryption error, received cleartext data while expecting encrytion")
+        # except OSError:
+        #     pass
 
     def send(self, data, is_error: bool = False, is_encrypted: bool = True):
         code: bytes = b"OK" if not is_error else b"ERR"
@@ -164,6 +167,10 @@ class Client:
             print(str(self) + " <- " + str(prefixed_data))
 
         self.comm_handler.send(prefixed_data)
+
+    def close(self, message: str = "unkown"):
+        self.print_debug("connection closed  (" + message + ")")
+        raise ClientDisconnected
 
     def print_debug(self, msg: str):
         print(str(self) + " : " + msg)

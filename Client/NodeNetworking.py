@@ -24,7 +24,6 @@ class NodeClient:
         print("Connected to Node.")
 
     def interactive(self):
-
         # Starting auth loop
         while True:
             data = self.receive(is_encrypted=False).decode()
@@ -98,6 +97,12 @@ class NodeClient:
 
         print("")
         time.sleep(0.2)
+
+        # Envoi périodique de keepalives, utilisation d'un thread dédié
+        keepalive_thread = threading.Thread(target=self.keepalive_sender)
+        keepalive_thread.setDaemon(True)
+        keepalive_thread.start()
+
         # Starting normal communication
         receive_thread = threading.Thread(target=self.listen_loop)
         receive_thread.setDaemon(True)
@@ -124,8 +129,11 @@ class NodeClient:
             except OSError:
                 pass
 
+    # Envoie un keepalive toutes les 8 secondes
     def keepalive_sender(self):
         while True:
+            self.send("keepalive", False)
+            time.sleep(8)
             pass
 
     def send(self, data, is_encrypted: bool = True):
@@ -176,14 +184,14 @@ if __name__ == '__main__':
     ch: CryptoHandler = Singleton.Instance(CryptoHandler)
     print("Identity : " + ch.identity)
     print("Simple TCP client starting...")
-    ip = input("IP address of server [127.0.0.1] : ")
-    port = input("TCP port of server [37405] : ")
-    if not ip:
-        ip = "127.0.0.1"
-    if not port:
-        port = 37405
+    ip_input = input("IP address of server [127.0.0.1] : ")
+    port_input = input("TCP port of server [37405] : ")
+    if not ip_input:
+        ip_input = "127.0.0.1"
+    if not port_input:
+        port_input = 37405
 
-    node = NodeClient(ip, port)
+    node = NodeClient(ip_input, port_input)
     try:
         node.initiate()
         print("")

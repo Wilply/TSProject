@@ -10,6 +10,7 @@ if __name__ == '__main__':
     Singleton.Instance(CryptoHandler)
 
     # Starting Client Management server
+    # address = ('::1', 37405)
     address = ('localhost', 37405)
     server = ThrClientManagementServer(address, ThrClientManagementRequestHandler)
     print("Server launched : " + str(server.server_address))

@@ -1,6 +1,6 @@
+import socket
 import socketserver
 import threading
-from socket import socket
 
 
 class ThrClientManagementRequestHandler(socketserver.BaseRequestHandler):
@@ -13,25 +13,20 @@ class ThrClientManagementRequestHandler(socketserver.BaseRequestHandler):
 
     # Point d'entrée de chaque connexion client établie
     def handle(self):
+        # Si le client n'envoie rien pendant 12 secondes on considère qu'il a timeout (et Client raise ClientTimeout)
+        self.request.settimeout(12)
         # Un nouveau client est connecté :
-        from Node.ClientMgmt import Client, ClientDisconnected, ClientAuthError, ClientSessionExchangeError
+        from Node.ClientMgmt import Client, ClientDisconnected
         print(str(threading.currentThread().getName()) + " " + str(self.client_address) + " connected.")
 
         # Boucle de gestion du client
         try:
             self.client = Client(self)
-        except ClientAuthError:
-            print(str(threading.currentThread().getName()) + " " + str(
-                self.client_identity) + " did not pass authentication checks. Stopping connection...")
-        except ClientSessionExchangeError:
-            print(str(threading.currentThread().getName()) + " " + str(
-                self.client_identity) + " error during session key exchange. Stopping connection...")
         except ClientDisconnected:
             pass
 
         # Fin de la boucle : le client a donc quitté
-        print(
-            str(threading.currentThread().getName()) + " " + str(self.client_identity) + " closed connection to node.")
+        print(str(threading.currentThread().getName()) + " " + str(self.client_identity) + " is now offline.")
         self.request.close()
         del self.client
         return
@@ -46,7 +41,7 @@ class ThrClientManagementRequestHandler(socketserver.BaseRequestHandler):
             # On reçoit de nouvelle données
             data += self.request.recv(2048)
             if not data:
-                break
+                return None
             buffer += data
             while True:
                 if length is None:
@@ -72,5 +67,9 @@ class ThrClientManagementRequestHandler(socketserver.BaseRequestHandler):
 
 
 class ThrClientManagementServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
+    # address_family = socket.AF_INET6
+
+    def handle_error(self, request, client_address):
+        super().handle_error(request, client_address)
+
     socketserver.ThreadingMixIn.daemon_threads = True
-    pass
