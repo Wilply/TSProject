@@ -1,5 +1,4 @@
 import hashlib
-import threading
 from base64 import b64decode, b64encode
 
 from Crypto.PublicKey.RSA import RsaKey
@@ -36,13 +35,13 @@ class Client:
         self.session_key = None
 
         # Envoi de la bannière de bienvenue
-        self.comm_handler.send("WELCOME TSProject node, listening")
+        self.send("WELCOME TSProject node, listening", is_encrypted=False)
 
         # Envoi de la clé publique du serveur
-        self.comm_handler.send("SERVER-KEY " + Client.crypto_handler.str_public_key)
+        self.send("SERVER-KEY " + Client.crypto_handler.str_public_key, is_encrypted=False)
 
         # Envoi de l'authenticator
-        self.comm_handler.send("SERVER-AUTH " + self.crypto_handler.get_authenticator())
+        self.send("SERVER-AUTH " + self.crypto_handler.get_authenticator(), is_encrypted=False)
 
         # Lancement de la phase de négociation de clé de session. Timeout de 5 sec
         try:
@@ -50,10 +49,13 @@ class Client:
         except (Exception, FunctionTimedOut):
             raise ClientSessionExchangeError
 
+        # A partir de ce point, tous les échanges sont chiffrés avec la clé de session
+
         # Lancement de la phase d'authentification du client. Timeout de 5 sec
         try:
             self.client_auth()
-        except (Exception, FunctionTimedOut):
+        # except (Exception, FunctionTimedOut):
+        except FunctionTimedOut:
             raise ClientAuthError
 
         # Lancement de la boucle d'écoute des commandes client
@@ -66,53 +68,54 @@ class Client:
             if data.split()[0] == "SESSION-KEY":
                 break
             else:
-                self.comm_handler.send("SESSION-NEEDED Please send session key", True)
+                self.send("SESSION-NEEDED Please send session key", True, False)
         self.session_key = self.crypto_handler.decrypt_rsa(b64decode(data.split()[1]))
         print("Session key : " + str(b64encode(self.session_key)))
-        self.comm_handler.send("SESSION-OK Session key exchange successful")
+        self.send("SESSION-OK Session key exchange successful", is_encrypted=False)
 
     @func_set_timeout(5)
     def client_auth(self):
         # On attend que le client envoie ses infos d'authentification
         while True:
-            data = self.listen_wait(False).decode()
+            data = self.listen_wait().decode()
             if data.split()[0] == "CLIENT-KEY":
                 break
             else:
-                self.comm_handler.send("KEY-NEEDED Please send public key", True)
+                self.send("KEY-NEEDED Please send public key", True)
 
         self.client_key_str = data.split()[1]
         self.client_key: RsaKey = self.crypto_handler.to_rsa(self.client_key_str)
 
         while True:
-            data = self.listen_wait(False).decode()
+            data = self.listen_wait().decode()
             if data.split()[0] == "CLIENT-AUTH":
                 break
             else:
-                self.comm_handler.send("AUTH-NEEDED Please auth", True)
+                self.send("AUTH-NEEDED Please auth", True)
 
         client_authenticator = data.split()[1]
 
         # Si le client est bien qui il prétend être
         if self.crypto_handler.check_authenticator(self.client_key, client_authenticator):
             self.client_identity: str = hashlib.sha1(self.client_key.export_key(format="DER")).hexdigest()
-            self.comm_handler.send("AUTH-OK Successfully authenticated, welcome " + self.client_identity)
+            self.comm_handler.client_identity = self.client_identity
+            self.send("AUTH-OK Successfully authenticated, welcome " + self.client_identity)
             self.print_debug("authenticated")
         else:
-            self.comm_handler.send("AUTH-ERROR Authentication error, wrong identity. Closing.")
+            self.send("AUTH-ERROR Authentication error, wrong identity. Closing.")
             raise Exception
 
     def do_hello(self, data):
-        self.comm_handler.send("Hello user ! You said " + data)
+        self.send("Hello user ! You said " + data)
 
     def do_whoami(self, data):
-        self.comm_handler.send("You are " + self.client_identity)
+        self.send("You are " + self.client_identity)
 
     def do_quit(self, data):
         pass
 
     def do_unknown_command(self):
-        self.comm_handler.send("Unknown command", True)
+        self.send("Unknown command", True)
 
     def main_loop(self):
 
@@ -126,14 +129,11 @@ class Client:
             # On redirige vers la fonction correspondant à la commande
             main_command = data.split()[0]
             function_call = function_switcher.get(main_command)
-            if main_command == "hello":
+            if function_call:
                 function_call(data)
             else:
                 self.do_unknown_command()
 
-    # TODO : afficher dans les logs le texte déchiffré au lieu de chiffré
-    # TODO : chiffrer le sens Node => Client
-    # TODO : créer une méthode send qui chiffre avant d'envoyer à ClientNetworking
     def listen_wait(self, is_encrypted: bool = True) -> bytes:
         try:
             # On attend que le client envoie quelque chose et on renvoie cette valeur
@@ -144,13 +144,29 @@ class Client:
             # Si on s'attend à des données chiffrées, alors on les déchiffre avec clé de session et un décode base64
             if is_encrypted:
                 data: bytes = self.crypto_handler.decrypt(data, self.session_key)
+                print(str(self) + " (E) -> " + str(data))
+            else:
+                print(str(self) + " -> " + str(data))
             return data
         except OSError:
             pass
+
+    def send(self, data, is_error: bool = False, is_encrypted: bool = True):
+        code: bytes = b"OK" if not is_error else b"ERR"
+        if type(data) == str:
+            data = data.encode()
+        prefixed_data: bytes = code + b" " + data
+
+        if is_encrypted:
+            print(str(self) + " (E) <- " + str(prefixed_data))
+            prefixed_data = (self.crypto_handler.encrypt(prefixed_data, self.session_key))
+        else:
+            print(str(self) + " <- " + str(prefixed_data))
+
+        self.comm_handler.send(prefixed_data)
 
     def print_debug(self, msg: str):
         print(str(self) + " : " + msg)
 
     def __str__(self):
-        return "Client " + str(threading.currentThread().getName()) + " " + str(
-            self.client_address) + " " + self.client_identity
+        return str(self.client_identity) if self.client_identity else str(self.client_address)

@@ -8,6 +8,7 @@ class ThrClientManagementRequestHandler(socketserver.BaseRequestHandler):
 
     def __init__(self, request, client_address, node_server):
         self.client = None
+        self.client_identity = None
         super().__init__(request, client_address, node_server)
 
     # Point d'entrée de chaque connexion client établie
@@ -21,15 +22,16 @@ class ThrClientManagementRequestHandler(socketserver.BaseRequestHandler):
             self.client = Client(self)
         except ClientAuthError:
             print(str(threading.currentThread().getName()) + " " + str(
-                self.client_address) + " did not pass authentication checks. Stopping connection...")
+                self.client_identity) + " did not pass authentication checks. Stopping connection...")
         except ClientSessionExchangeError:
             print(str(threading.currentThread().getName()) + " " + str(
-                self.client_address) + " error during session key exchange. Stopping connection...")
+                self.client_identity) + " error during session key exchange. Stopping connection...")
         except ClientDisconnected:
             pass
 
         # Fin de la boucle : le client a donc quitté
-        print(str(threading.currentThread().getName()) + " " + str(self.client_address) + " closed connection to node.")
+        print(
+            str(threading.currentThread().getName()) + " " + str(self.client_identity) + " closed connection to node.")
         self.request.close()
         del self.client
         return
@@ -61,19 +63,11 @@ class ThrClientManagementRequestHandler(socketserver.BaseRequestHandler):
 
         full_message = message
 
-        print(str(threading.currentThread().getName()) + " " + str(self.client_address) + " -> " + str(message))
+        # print(str(threading.currentThread().getName()) + " " + str(self.client_address) + " -> " + str(message))
         return full_message
 
-    def send(self, data, is_error: bool = False):
-        code: bytes = b"OK" if not is_error else b"ERR"
-        if type(data) == str:
-            data = data.encode()
-        prefixed_data: bytes = code + b" " + data
-        print(str(threading.currentThread().getName()) + " " + str(self.client_address) + " <- " + str(prefixed_data))
-
-        lenght = len(prefixed_data)
-        # On préfixe les données avec leur indication de taille
-        full_data = str(lenght).encode() + b":" + prefixed_data
+    def send(self, data: bytes):
+        full_data = str(len(data)).encode() + b":" + data
         self.request.send(full_data)
 
 

@@ -27,7 +27,7 @@ class NodeClient:
 
         # Starting auth loop
         while True:
-            data = self.receive()
+            data = self.receive(is_encrypted=False).decode()
             if data.split()[1] == "WELCOME":
                 print("Node banner : " + " ".join(data.split()[2:]))
             if data.split()[1] == "SERVER-KEY":
@@ -73,13 +73,15 @@ class NodeClient:
         # On génère la clé de session et on l'envoie au serveur
         self.session_key: bytes = ch.generate_session_key()
         print("Session key : " + str(b64encode(self.session_key)))
-        self.send(b"SESSION-KEY " + b64encode(ch.encrypt_rsa(self.session_key, self.server_key)))
+        self.send(b"SESSION-KEY " + b64encode(ch.encrypt_rsa(self.session_key, self.server_key)), is_encrypted=False)
 
         while True:
-            data = self.receive()
+            data = self.receive(is_encrypted=False).decode()
             if data.split()[1] == "SESSION-OK":
                 print("Session key exchange successful")
                 break
+
+        # A partir de maintenant, les échanges se font en full chiffré
 
         # Envoi des données d'identité du client
         print("Sending client public key and identity")
@@ -89,7 +91,7 @@ class NodeClient:
         self.send("CLIENT-AUTH " + ch.get_authenticator())
 
         while True:
-            data = self.receive()
+            data = self.receive().decode()
             if data.split()[1] == "AUTH-OK":
                 print("Client authentication successful")
                 break
@@ -97,7 +99,7 @@ class NodeClient:
         print("")
         time.sleep(0.2)
         # Starting normal communication
-        receive_thread = threading.Thread(target=self.listen)
+        receive_thread = threading.Thread(target=self.listen_loop)
         receive_thread.setDaemon(True)
         receive_thread.start()
         time.sleep(0.2)
@@ -110,33 +112,34 @@ class NodeClient:
                 self.node_socket.close()
                 raise SystemExit
             # On envoie les données chiffrées et encodées en base64
-            self.send(ch.encrypt(user_input, self.session_key))
+            self.send(user_input)
             time.sleep(0.2)
 
-    def send(self, data):
-        if type(data) == str:
-            data = data.encode()
-
-        lenght = len(data)
-        # On préfixe les données avec leur indication de taille
-        full_data = str(lenght).encode() + b":" + data
-        self.node_socket.send(full_data)
-
-    def listen(self):
+    def listen_loop(self):
         while True:
             try:
-                data: str = self.receive()
-                print("Node : " + data)
+                data: bytes = self.receive()
+                print("Node : " + data.decode())
                 # On process les données reçues par le node
-                if not data:
-                    self.node_socket.close()
-                    print("Node closed connection. Exiting...")
-                    raise SystemExit
             except OSError:
                 pass
 
+    def keepalive_sender(self):
+        while True:
+            pass
+
+    def send(self, data, is_encrypted: bool = True):
+        if type(data) == str:
+            data = data.encode()
+        if is_encrypted:
+            data = ch.encrypt(data, self.session_key)
+        length = len(data)
+        # On préfixe les données avec leur indication de taille
+        full_data = str(length).encode() + b":" + data
+        self.node_socket.send(full_data)
+
     # noinspection DuplicatedCode
-    def receive(self) -> str:
+    def receive(self, is_encrypted: bool = True) -> bytes:
         length = None
         buffer = data = message = b""
         receiving = True
@@ -145,7 +148,9 @@ class NodeClient:
             # On reçoit de nouvelle données
             data += self.node_socket.recv(2048)
             if not data:
-                break
+                self.node_socket.close()
+                print("Node closed connection. Exiting...")
+                raise SystemExit
             buffer += data
             while True:
                 if length is None:
@@ -156,12 +161,13 @@ class NodeClient:
                     length = int(length_str)
                 if len(buffer) == length:
                     receiving = False
-                message = buffer[:length]
+                message: bytes = buffer[:length]
                 buffer = buffer[length:]
                 length = None
-        full_message = message.decode()
 
-        return full_message
+        if is_encrypted:
+            message = ch.decrypt(message, self.session_key)
+        return message
 
 
 if __name__ == '__main__':
