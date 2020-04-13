@@ -1,5 +1,8 @@
 import hashlib
 import socket
+import threading
+import time
+import weakref
 from base64 import b64decode, b64encode
 
 from Crypto.PublicKey.RSA import RsaKey
@@ -18,6 +21,25 @@ class Client:
     client_identity: str
     # noinspection PyCallByClass,PyCallByClass
     crypto_handler: CryptoHandler = Singleton.Instance(CryptoHandler)
+    __instances = {}
+
+    @staticmethod
+    def get_client(client_identity: str):
+        try:
+            return Client.__instances[client_identity]
+        except KeyError:
+            return None
+
+    @staticmethod
+    def del_client(client_identity: str):
+        if client_identity in Client.__instances:
+            Client.__instances.pop(client_identity)
+
+    @staticmethod
+    def list_clients():
+        print("Authenticated clients list :")
+        for client in Client.__instances:
+            print("- " + client)
 
     def __init__(self, comm_handler: ThrClientManagementRequestHandler):
         self.comm_handler: ThrClientManagementRequestHandler = comm_handler
@@ -26,6 +48,8 @@ class Client:
         self.client_key_str = None
         self.client_key = None
         self.session_key = None
+        self.__inbox_queue = []
+        self.thread = threading.current_thread()
 
         # Envoi de la bannière de bienvenue
         self.send("WELCOME TSProject node, listening", is_encrypted=False)
@@ -52,7 +76,23 @@ class Client:
             self.close("client authentication timed out")
 
         # Lancement de la boucle d'écoute des commandes client
-        self.main_loop()
+        thr_main = threading.Thread(target=self.main_loop)
+        thr_main.setDaemon(True)
+        thr_main.start()
+
+        # Lancement de la boucle d'écoute des commandes internes
+        self.inbox_listener()
+
+    # Inbox listener récupère les commandes envoyées par d'autres thread puis les fait éxecuter par le thread
+    # du client. Cela permet d'être thread-safe ainsi que de raise les exceptions au bon endroit.
+    def inbox_listener(self):
+        while True:
+            for event in self.__inbox_queue:
+                self.print_debug("processing inbox : " + str(event))
+                if event[0] == "close":
+                    self.__inbox_queue.remove(event)
+                    self.close(event[1])
+            time.sleep(0.2)
 
     @func_set_timeout(5)
     def client_crypto_exchange(self):
@@ -66,7 +106,7 @@ class Client:
         print("Session key : " + str(b64encode(self.session_key)))
         self.send("SESSION-OK Session key exchange successful", is_encrypted=False)
 
-    @func_set_timeout(5)
+    @func_set_timeout(7)
     def client_auth(self):
         # On attend que le client envoie ses infos d'authentification
         while True:
@@ -92,8 +132,22 @@ class Client:
         if self.crypto_handler.check_authenticator(self.client_key, client_authenticator):
             self.client_identity: str = hashlib.sha1(self.client_key.export_key(format="DER")).hexdigest()
             self.comm_handler.client_identity = self.client_identity
+            # On vérifie que le client n'est pas déjà connecté
+            existing_client: Client = Client.get_client(self.client_identity)
+            # Si le client est déjà connecté, on ferme la connexion de l'ancien
+            if existing_client:
+                existing_client.close("connected from another place")
+                self.send("ALREADY-CONNECTED You are logged in from another place. Killing old connection...")
+                # Attente de la déconnexion de l'ancien client
+                while True:
+                    if self.client_identity not in self.__instances:
+                        self.print_debug("old connection killed")
+                        break
+                    time.sleep(0.5)
+            # Ajout du client à la liste des clients :
             self.send("AUTH-OK Successfully authenticated, welcome " + self.client_identity)
             self.print_debug("authenticated")
+            self.__instances[self.client_identity] = weakref.proxy(self)
         else:
             self.send("AUTH-ERROR Authentication error, wrong identity. Closing.")
             raise Exception
@@ -118,7 +172,10 @@ class Client:
             "quit": self.do_quit,
         }
         while True:
-            data = self.listen_wait().decode()
+            data = self.listen_wait()
+            if not data:
+                break
+            data = data.decode()
             # On redirige vers la fonction correspondant à la commande
             main_command = data.split()[0]
             function_call = function_switcher.get(main_command)
@@ -133,14 +190,18 @@ class Client:
                 # On attend que le client envoie quelque chose et on renvoie cette valeur
                 data: bytes = self.comm_handler.receive()
                 # Si le socket n'envoie plus rien, alors le client est déconnecté
-                if not data or data == "":
+                if not data or data == b'':
                     self.close("client left")
+                    time.sleep(2)
                 # Si la donnée reçue n'est pas un keepalive, on process (sinon on recommence la boucle)
                 if data != b"keepalive":
                     # Si on s'attend à des données chiffrées, alors on les déchiffre avec clé de session et un décode
                     # base64
                     if is_encrypted:
                         data: bytes = self.crypto_handler.decrypt(data, self.session_key)
+                        # Si les données chiffrées ne correspondent à rien, alors le client est déconnecté
+                        if data == b'':
+                            self.close("client left")
                         print(str(self) + " (E) -> " + str(data))
                     else:
                         print(str(self) + " -> " + str(data))
@@ -151,8 +212,9 @@ class Client:
             self.close("timed out")
         except ValueError:
             self.close("encryption error, received cleartext data while expecting encrytion")
-        # except OSError:
-        #     pass
+        # Si on a une erreur de chiffrement ou de récupération de valeurs, on ferme immédiatement
+        except (TypeError, AttributeError):
+            pass
 
     def send(self, data, is_error: bool = False, is_encrypted: bool = True):
         code: bytes = b"OK" if not is_error else b"ERR"
@@ -168,12 +230,22 @@ class Client:
 
         self.comm_handler.send(prefixed_data)
 
-    def close(self, message: str = "unkown"):
-        self.print_debug("connection closed  (" + message + ")")
-        raise ClientDisconnected
+    def close(self, message: str = "unknown"):
+        # Si l'appel de close est réalisé depuis le thread du client, on raise l'exception et on ferme
+        if self.thread == threading.current_thread():
+            self.print_debug("connection closed (" + message + ")")
+            self.send("DISCONNECTED Node closed connection : " + message, is_error=True)
+            raise ClientDisconnected
+        # Sinon, on ajoute le message dans l'inbox_queue pour que le thread du client le process
+        else:
+            self.__inbox_queue.append(("close", message))
 
     def print_debug(self, msg: str):
         print(str(self) + " : " + msg)
 
+    def exists(self):
+        return True
+
     def __str__(self):
-        return str(self.client_identity) if self.client_identity else str(self.client_address)
+        return str(self.client_address) + " " + str(self.client_identity) if self.client_identity else str(
+            self.client_address)

@@ -1,4 +1,5 @@
 import socket
+import sys
 import threading
 import time
 from base64 import b64encode
@@ -116,8 +117,9 @@ class NodeClient:
                 print("Exiting")
                 self.node_socket.close()
                 raise SystemExit
-            # On envoie les données chiffrées et encodées en base64
-            self.send(user_input)
+            # On envoie les données chiffrées et encodées en base64, si elles ne sont pas vides
+            elif user_input != "":
+                self.send(user_input)
             time.sleep(0.2)
 
     def listen_loop(self):
@@ -132,7 +134,11 @@ class NodeClient:
     # Envoie un keepalive toutes les 8 secondes
     def keepalive_sender(self):
         while True:
-            self.send("keepalive", False)
+            try:
+                self.send("keepalive", False)
+            # Si la fonction send renvoie OSError, alors le socket est fermé.
+            except OSError:
+                sys.exit()
             time.sleep(8)
             pass
 

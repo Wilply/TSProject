@@ -9,6 +9,7 @@ class ThrClientManagementRequestHandler(socketserver.BaseRequestHandler):
     def __init__(self, request, client_address, node_server):
         self.client = None
         self.client_identity = None
+        self.client_thread: threading.Thread = threading.current_thread()
         super().__init__(request, client_address, node_server)
 
     # Point d'entrée de chaque connexion client établie
@@ -19,19 +20,24 @@ class ThrClientManagementRequestHandler(socketserver.BaseRequestHandler):
         from Node.ClientMgmt import Client, ClientDisconnected
         print(str(threading.currentThread().getName()) + " " + str(self.client_address) + " connected.")
 
-        # Boucle de gestion du client
+        # Boucle de gestion du client (ne s'arrête que lorsque le client se déconnecte)
         try:
             self.client = Client(self)
         except ClientDisconnected:
             pass
-
-        # Fin de la boucle : le client a donc quitté
-        print(str(threading.currentThread().getName()) + " " + str(self.client_identity) + " is now offline.")
-        self.request.close()
-        del self.client
+        # On retourne lorsque le client a terminé
         return
 
-    # Receive adaptative size
+    def finish(self):
+        print(str(threading.currentThread().getName()) + " " + str(self.client_identity) + " " + str(
+            self.client_address) + " is now offline.")
+        del self.client
+        # Suppression du client dans la liste :
+        from Node.ClientMgmt import Client
+        Client.del_client(self.client_identity)
+        super().finish()
+
+    # On reçoit les données en prenant en compte leur taille
     def receive(self):
         length = None
         buffer = data = message = b""
