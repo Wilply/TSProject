@@ -4,12 +4,14 @@ import threading
 import time
 import weakref
 from base64 import b64decode, b64encode
+from datetime import datetime
 
 from Crypto.PublicKey.RSA import RsaKey
 from func_timeout import func_set_timeout, FunctionTimedOut
 
 from Node.ClientNetworking import ThrClientManagementRequestHandler
 from Node.CryptoHandler import CryptoHandler
+from Node.DbManager import ClientModel
 from Node.Utils import Singleton
 
 
@@ -40,6 +42,15 @@ class Client:
         print("Authenticated clients list :")
         for client in Client.__instances:
             print("- " + client)
+
+    @staticmethod
+    def kill_all_clients():
+        for client in Client.__instances:
+            Client.get_client(client).close("server terminated all connections")
+
+    @staticmethod
+    def clients_count():
+        return len(Client.__instances)
 
     def __init__(self, comm_handler: ThrClientManagementRequestHandler):
         self.comm_handler: ThrClientManagementRequestHandler = comm_handler
@@ -132,6 +143,7 @@ class Client:
         if self.crypto_handler.check_authenticator(self.client_key, client_authenticator):
             self.client_identity: str = hashlib.sha1(self.client_key.export_key(format="DER")).hexdigest()
             self.comm_handler.client_identity = self.client_identity
+            self.send("AUTH-OK Successfully authenticated, welcome " + self.client_identity)
             # On vérifie que le client n'est pas déjà connecté
             existing_client: Client = Client.get_client(self.client_identity)
             # Si le client est déjà connecté, on ferme la connexion de l'ancien
@@ -144,10 +156,18 @@ class Client:
                         self.print_debug("old connection killed")
                         break
                     time.sleep(0.5)
-            # Ajout du client à la liste des clients :
-            self.send("AUTH-OK Successfully authenticated, welcome " + self.client_identity)
+            # Ajout du client à la liste des clients
             self.print_debug("authenticated")
             self.__instances[self.client_identity] = weakref.proxy(self)
+            # Ajout du client à la base de données si il n'existe pas
+            existing_db_client: ClientModel = ClientModel.get_or_none(ClientModel.identity == self.client_identity)
+            if not existing_db_client:
+                ClientModel.create(identity=self.client_identity, last_seen=datetime.timestamp(datetime.now()))
+                self.print_debug("creating new client identity in database")
+                self.send("NEW-CLIENT You are new on this node. Welcome.")
+            else:
+                existing_db_client.last_seen = datetime.timestamp(datetime.now())
+                existing_db_client.save()
         else:
             self.send("AUTH-ERROR Authentication error, wrong identity. Closing.")
             raise Exception
@@ -235,6 +255,11 @@ class Client:
         if self.thread == threading.current_thread():
             self.print_debug("connection closed (" + message + ")")
             self.send("DISCONNECTED Node closed connection : " + message, is_error=True)
+            # On indique l'heure de dernière connexion du client dans la db
+            existing_db_client: ClientModel = ClientModel.get_or_none(ClientModel.identity == self.client_identity)
+            if existing_db_client:
+                existing_db_client.last_seen = datetime.timestamp(datetime.now())
+                existing_db_client.save()
             raise ClientDisconnected
         # Sinon, on ajoute le message dans l'inbox_queue pour que le thread du client le process
         else:
@@ -242,9 +267,6 @@ class Client:
 
     def print_debug(self, msg: str):
         print(str(self) + " : " + msg)
-
-    def exists(self):
-        return True
 
     def __str__(self):
         return str(self.client_address) + " " + str(self.client_identity) if self.client_identity else str(
