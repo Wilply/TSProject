@@ -61,6 +61,7 @@ Voici les commandes à disposition du client :
 Renvoie "ERR CLIENT-UNKNOWN" si le client est inconnu
 
 "get-status" : fait renvoyer par le Node le statut de connexion du client spécifié :
+
 (E) Node : OK GET-CLIENT-STATUS ID_CLIENT_DEMMANDÉ ONLINE
 
 (E) Node : OK GET-CLIENT-STATUS ID_CLIENT_DEMMANDÉ OFFLINE TIMESTAMP_DERNIERE_CONNEXION
