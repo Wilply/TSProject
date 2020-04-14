@@ -54,4 +54,17 @@ Voici les commandes à disposition du client :
 
 (E) Node : OK You are IDENTITÉ CLIENT
 
+"get-key ID" : fait renvoyer par le Node la clé publique du client spécifié :
+
+(E) Node : OK GET-CLIENT-KEY ID_CLIENT_DEMMANDÉ CLÉ_PUBLIQUE_CLIENT
+
+Renvoie "ERR CLIENT-UNKNOWN" si le client est inconnu
+
+"get-status" : fait renvoyer par le Node le statut de connexion du client spécifié :
+(E) Node : OK GET-CLIENT-STATUS ID_CLIENT_DEMMANDÉ ONLINE
+
+(E) Node : OK GET-CLIENT-STATUS ID_CLIENT_DEMMANDÉ OFFLINE TIMESTAMP_DERNIERE_CONNEXION
+
+Renvoie "ERR CLIENT-UNKNOWN" si le client est inconnu
+
 "quit" n'est pas une commande implémentée sur le serveur, elle fait simplement quitter le client. Le serveur reçoit les TCP FIN et met fin à la connexion.
