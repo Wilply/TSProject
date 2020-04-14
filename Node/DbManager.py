@@ -14,6 +14,7 @@ class BaseModel(Model):
 
 class ClientModel(BaseModel):
     identity = CharField(max_length=50, primary_key=True, unique=True)
+    public_key = CharField(max_length=450, unique=True)
     last_seen = BigIntegerField()
 
 

@@ -33,6 +33,14 @@ class Client:
             return None
 
     @staticmethod
+    def get_client_key(client_identity: str):
+        try:
+            client: ClientModel = ClientModel.get_or_none(ClientModel.identity == client_identity)
+            return client.public_key
+        except KeyError:
+            return None
+
+    @staticmethod
     def del_client(client_identity: str):
         if client_identity in Client.__instances:
             Client.__instances.pop(client_identity)
@@ -162,7 +170,8 @@ class Client:
             # Ajout du client à la base de données si il n'existe pas
             existing_db_client: ClientModel = ClientModel.get_or_none(ClientModel.identity == self.client_identity)
             if not existing_db_client:
-                ClientModel.create(identity=self.client_identity, last_seen=datetime.timestamp(datetime.now()))
+                ClientModel.create(identity=self.client_identity, public_key=self.client_key_str,
+                                   last_seen=datetime.timestamp(datetime.now()))
                 self.print_debug("creating new client identity in database")
                 self.send("NEW-CLIENT You are new on this node. Welcome.")
             else:
@@ -181,6 +190,30 @@ class Client:
     def do_quit(self, data):
         pass
 
+    def do_get_key(self, data):
+        client_key = Client.get_client_key(data.split()[1])
+        if not client_key:
+            self.send("CLIENT-UNKNOWN Client is not known from this node", is_error=True)
+        else:
+            self.send("GET-CLIENT-KEY " + data.split()[1] + " " + client_key)
+
+    def do_get_status(self, data):
+        client_identity_lookup = data.split()[1]
+        client: Client = Client.get_client(client_identity_lookup)
+        # Si le client est trouvé dans la liste des connectés actuels sur ce node :
+        if client:
+            self.send("GET-CLIENT-STATUS " + client_identity_lookup + " ONLINE")
+        # Si le client n'est pas dans la liste des connectés, on regarde dans la db :
+        else:
+            client_db: ClientModel = ClientModel.get_or_none(ClientModel.identity == client_identity_lookup)
+            # Si le client existe dans la db :
+            if client_db:
+                self.send("GET-CLIENT-STATUS " + client_identity_lookup + " OFFLINE " + str(client_db.last_seen))
+            # Si le client n'existe pas dans la db :
+            else:
+                self.send("CLIENT-UNKNOWN Client is not known from this node", is_error=True)
+        pass
+
     def do_unknown_command(self):
         self.send("Unknown command", True)
 
@@ -189,6 +222,8 @@ class Client:
         function_switcher = {
             "hello": self.do_hello,
             "whoami": self.do_whoami,
+            "get-key": self.do_get_key,
+            "get-status": self.do_get_status,
             "quit": self.do_quit,
         }
         while True:
@@ -197,7 +232,7 @@ class Client:
                 break
             data = data.decode()
             # On redirige vers la fonction correspondant à la commande
-            main_command = data.split()[0]
+            main_command = data.split()[0].lower()
             function_call = function_switcher.get(main_command)
             if function_call:
                 function_call(data)
