@@ -110,6 +110,9 @@ class NodeClient:
         receive_thread.start()
         time.sleep(0.2)
 
+        self.input_loop()
+
+    def input_loop(self):
         # Starting input infinite loop
         while True:
             user_input = input("Client > ")
