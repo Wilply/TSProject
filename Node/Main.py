@@ -1,12 +1,14 @@
+#!/usr/local/bin/python3
+
 import threading
 import time
 from datetime import datetime
 
-from Node.ClientMgmt import Client
-from Node.ClientNetworking import ThrClientManagementServer, ThrClientManagementRequestHandler
-from Node.CryptoHandler import CryptoHandler
-from Node.DbManager import ClientModel
-from Node.Utils import Singleton
+from ClientMgmt import Client
+from ClientNetworking import ThrClientManagementServer, ThrClientManagementRequestHandler
+from CryptoHandler import CryptoHandler
+from DbManager import ClientModel
+from Utils import Singleton
 
 if __name__ == '__main__':
     # Starting CryptoHandler (key generation)

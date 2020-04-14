@@ -9,10 +9,10 @@ from datetime import datetime
 from Crypto.PublicKey.RSA import RsaKey
 from func_timeout import func_set_timeout, FunctionTimedOut
 
-from Node.ClientNetworking import ThrClientManagementRequestHandler
-from Node.CryptoHandler import CryptoHandler
-from Node.DbManager import ClientModel
-from Node.Utils import Singleton
+from ClientNetworking import ThrClientManagementRequestHandler
+from CryptoHandler import CryptoHandler
+from DbManager import ClientModel
+from Utils import Singleton
 
 
 class ClientDisconnected(Exception):

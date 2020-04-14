@@ -8,8 +8,8 @@ from Crypto.PublicKey import RSA
 from Crypto.PublicKey.RSA import RsaKey
 from Crypto.Signature.pkcs1_15 import PKCS115_SigScheme
 
-from Node.NodeConfig import NodeConfig
-from Node.Utils import Singleton
+from NodeConfig import NodeConfig
+from Utils import Singleton
 
 
 # CryptoHandler est un singleton : son instanciation n'est possible qu'une fois.

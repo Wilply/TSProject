@@ -1,7 +1,7 @@
 # noinspection DuplicatedCode
 from peewee import *
 
-from Node.NodeConfig import NodeConfig
+from NodeConfig import NodeConfig
 
 NodeConfig.check_dir()
 node_db: SqliteDatabase = SqliteDatabase('.config/db.sqlite')
